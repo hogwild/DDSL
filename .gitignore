@@ -14,7 +14,12 @@ __pycache__/
 /provenance/
 /scripts/validate_release.py
 /AGENTS.md
-/docs/
+
+# Publish only the maintained user guides; retain research notes locally.
+/docs/*
+!/docs/data.md
+!/docs/experiments.md
+!/docs/reporting.md
 
 deprecated/
 experiments/

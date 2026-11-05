@@ -1,6 +1,6 @@
 # Full DDSL pipeline only. Standalone stage YAMLs remain in configs/base.
 # Snapshot of the current CSI300/qfq/beta=0.3 workstation settings.
-# See README.md#data-and-configuration; run from the repository root.
+# See docs/experiments.md#configuration; run from the repository root.
 # Existing output directories are refused. Set a new --output_root for a new run.
 # force_regenerate_blacklist retains the existing workstation behavior:
 # it rewrites the shared configs/symbols blacklist (not isolated per run).
