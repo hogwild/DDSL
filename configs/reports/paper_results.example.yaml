@@ -1,0 +1,31 @@
+# Copy this file, then replace EDIT_* with actual completed batch directory names.
+# Paths are relative to THIS YAML (absolute paths are also accepted).
+# This selects existing results; it never changes the experiment's adjustment.
+schema_version: 1
+seeds: [41, 42, 43]
+main_beta: "03"
+ablation_betas: ["01", "02", "03", "04", "05", "06", "07", "08", "inf"]
+# Explicitly approved: use existing cumulative labels/test comparisons.
+# These are NOT statistics restricted to 2023–2025.
+label_scope: existing_test_prefix
+datasets:
+  SSE50:
+    transformer_batch: ../../outputs/ablation_runs/EDIT_SSE50_TRANSFORMER_BATCH
+    gru_batch: ../../outputs/ablation_runs/EDIT_SSE50_GRU_BATCH
+    adjust: hfq
+    ablation: true
+  CSI300:
+    transformer_batch: ../../outputs/ablation_runs/EDIT_CSI300_TRANSFORMER_BATCH
+    gru_batch: ../../outputs/ablation_runs/EDIT_CSI300_GRU_BATCH
+    adjust: hfq
+    ablation: false
+  CSI500:
+    transformer_batch: ../../outputs/ablation_runs/EDIT_CSI500_TRANSFORMER_BATCH
+    gru_batch: ../../outputs/ablation_runs/EDIT_CSI500_GRU_BATCH
+    adjust: hfq
+    ablation: false
+  NASDAQ100:
+    transformer_batch: ../../outputs/ablation_runs/EDIT_NASDAQ100_TRANSFORMER_BATCH
+    gru_batch: ../../outputs/ablation_runs/EDIT_NASDAQ100_GRU_BATCH
+    adjust: hfq
+    ablation: true

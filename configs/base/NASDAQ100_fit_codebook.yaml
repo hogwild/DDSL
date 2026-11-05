@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Codebook fitting config for NASDAQ
+# Token signature: K=16  Q=8  G=8  M=4
+# Fit window: up to 2018-12-31 (no train-set leakage)
+# ─────────────────────────────────────────────────────────────────────────────
+dataset:
+  name: NASDAQ100
+  market: us
+  adjust: hfq
+  
+data:
+  raw_dir:         data/raw/NASDAQ100
+  symbol_txt_path: null        # set to e.g. configs/symbols/SSE50.txt to filter
+  blacklist_path:  configs/symbols/NASDAQ100_blacklist.txt  # Added
+  
+fit:
+  start_date: null             # null = use all data up to end_date
+  end_date:   "2018-12-31"
+
+output:
+  # In pipeline mode, out_dir is automatically overridden with
+  # {output_root}/{dataset}/codebook
+  # Applies only to direct run_fit_codebook.py calls with --out_dir.
+  out_dir: outputs/NASDAQ100/codebook
+
+tokens:
+  K:
+    k_geom: 16                 # KMeans clusters for candlestick geometry token
+
+  Q:
+    bins: 8
+    mode: dc                   # dc = log(Ct / Ct-1)  |  volnorm = dc / sigma_{t-1}
+    vol_window:   60           # rolling window for sigma  (volnorm mode only)
+    min_periods:  30           # minimum periods for sigma (volnorm mode only)
+
+  G:
+    bins: 8                    # overnight gap token bins
+
+  M:
+    bins: 4
+    col:  turnover             # DataFrame column used for M (liquidity proxy)
+
+debug:
+  max_files: 0                 # 0 = process all files;  >0 = truncate (for testing)

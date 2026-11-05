@@ -1,0 +1,246 @@
+"""
+run_check_price_quality.py
+==========================
+Pipeline entry point for data quality checks, following the other run_*.py scripts.
+Run before codebook fitting to generate a blacklist for subsequent stages.
+
+Usage
+-----
+python src/pipeline/run_check_price_quality.py \\
+    --dataset   CSI300 \\
+    --config    configs/base/CSI300_fit_codebook.yaml \\
+    --output_root outputs \\
+    --adjust    hfq
+
+Generated files:
+    config.data.blacklist_path              ← blacklist read by pipeline stages
+    Defaults to configs/symbols/{DATASET}_blacklist.txt when not configured.
+    outputs/{DATASET}/data_quality_report.json ← detailed report
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "src"))
+
+from data.check_price_quality import (
+    check_price_quality,
+    load_blacklist,
+    save_blacklist,
+    save_report_json,
+)
+from common.config_utils import (
+    infer_dataset_name,
+    infer_adjust,
+)
+
+
+# =============================================================================
+# CLI
+# =============================================================================
+
+def parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser(
+        description="Data quality check: scan raw CSV files and generate a blacklist.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    ap.add_argument(
+        "--dataset",
+        default=None,
+        help="Dataset name, such as CSI300; inferred from --config when omitted.",
+    )
+    ap.add_argument(
+        "--config",
+        default=None,
+        help="Path to fit_codebook YAML providing raw_dir / fit_end_date / min_rows.",
+    )
+    ap.add_argument(
+        "--raw_dir",
+        default=None,
+        help="Raw-data directory; overrides the configuration value.",
+    )
+    ap.add_argument(
+        "--fit_end_date",
+        default=None,
+        help="Fit window end date (YYYY-MM-DD); overrides the configuration value.",
+    )
+    ap.add_argument(
+        "--min_rows",
+        type=int,
+        default=None,
+        help="Minimum valid rows in the fit window (default: 60); fewer rows are considered insufficient.",
+    )
+    ap.add_argument(
+        "--output_root",
+        default="outputs",
+        help="Output root directory.",
+    )
+    ap.add_argument(
+        "--adjust",
+        default=None,
+        help="Price adjustment, such as hfq; inferred from configuration when omitted.",
+    )
+    ap.add_argument(
+        "--symbol_txt",
+        default=None,
+        help="Optional symbol allowlist text file; scan only the listed symbols.",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerate the blacklist even if it already exists.",
+    )
+    ap.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Print configuration without scanning.",
+    )
+    return ap.parse_args()
+
+
+# =============================================================================
+# Configuration resolution
+# =============================================================================
+
+def load_yaml(path: str) -> dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def resolve_params(args: argparse.Namespace) -> dict[str, Any]:
+    """
+    Resolve all runtime parameters from CLI arguments and YAML configuration.
+    CLI arguments take precedence over configuration values.
+    """
+    cfg: dict[str, Any] = {}
+    if args.config:
+        cfg = load_yaml(args.config)
+
+    # dataset
+    dataset = args.dataset or infer_dataset_name(cfg, config_path=args.config)
+
+    # adjust
+    adjust = args.adjust or infer_adjust(cfg)
+
+    # raw_dir
+    raw_dir = (
+        args.raw_dir
+        or cfg.get("data", {}).get("raw_dir")
+        or f"data/raw/{dataset}"
+    )
+
+    # fit_end_date
+    fit_end_date = (
+        args.fit_end_date
+        or cfg.get("fit", {}).get("end_date")
+    )
+    if not fit_end_date:
+        raise ValueError(
+            "fit_end_date is required. "
+            "Pass --fit_end_date or set fit.end_date in the YAML config."
+        )
+
+    # min_rows
+    if args.min_rows is not None:
+        min_rows = args.min_rows
+    else:
+        min_rows = int(cfg.get("fit", {}).get("min_rows", 60))
+
+    return {
+        "dataset":      dataset,
+        "adjust":       adjust,
+        "raw_dir":      Path(raw_dir),
+        "fit_end_date": str(fit_end_date),
+        "min_rows":     min_rows,
+        "blacklist_path": Path(cfg.get("data", {}).get("blacklist_path")
+                               or f"configs/symbols/{dataset}_blacklist.txt"),
+    }
+
+
+# =============================================================================
+# Main
+# =============================================================================
+
+def main() -> None:
+    args = parse_args()
+    params = resolve_params(args)
+
+    dataset      = params["dataset"]
+    adjust       = params["adjust"]
+    raw_dir      = params["raw_dir"]
+    fit_end_date = params["fit_end_date"]
+    min_rows     = params["min_rows"]
+    output_root  = Path(args.output_root)
+
+    blacklist_path = params["blacklist_path"]
+    report_path    = output_root / dataset / "blacklist" / "data_quality_report.json"
+
+    print("=" * 60)
+    print("Data Quality Check")
+    print("=" * 60)
+    print(f"  dataset      : {dataset}")
+    print(f"  raw_dir      : {raw_dir}")
+    print(f"  adjust       : {adjust}")
+    print(f"  fit_end_date : {fit_end_date}")
+    print(f"  min_rows     : {min_rows}")
+    print(f"  blacklist    : {blacklist_path}")
+    print(f"  report       : {report_path}")
+    print("=" * 60)
+
+    if args.dry_run:
+        print("[DRY RUN] Would scan and generate blacklist.")
+        return
+
+    # Skip an existing result unless regeneration is forced.
+    if blacklist_path.exists() and not args.force:
+        existing = load_blacklist(blacklist_path)
+        print(f"[INFO] Blacklist already exists ({len(existing)} symbols). "
+              f"Use --force to regenerate.")
+        return
+
+    # Filter by the symbol allowlist.
+    symbols = None
+    if args.symbol_txt:
+        from data.check_price_quality import load_blacklist as _load_txt
+        symbols = _load_txt(Path(args.symbol_txt))
+        print(f"[INFO] Symbol filter: {len(symbols)} symbols from {args.symbol_txt}")
+
+    # Run the scan.
+    blacklist, report = check_price_quality(
+        raw_dir=raw_dir,
+        adjust=adjust,
+        fit_end_date=fit_end_date,
+        min_rows=min_rows,
+        symbols=symbols,
+    )
+
+    # Save outputs.
+    save_blacklist(blacklist, report, blacklist_path,
+                   fit_end_date=fit_end_date, min_rows=min_rows)
+    print(f"[OK]  blacklist ({len(blacklist)} symbols) → {blacklist_path}")
+
+    save_report_json(report, report_path)
+    print(f"[OK]  report ({len(report)} entries) → {report_path}")
+
+    # Print the summary.
+    from data.check_price_quality import REASON_NEGATIVE_PRICE, REASON_INSUFFICIENT_ROWS
+    neg_syms   = sorted({r["symbol"] for r in report if r["reason"] == REASON_NEGATIVE_PRICE})
+    insuf_syms = sorted({r["symbol"] for r in report if r["reason"] == REASON_INSUFFICIENT_ROWS})
+    insuf_only = sorted(set(insuf_syms) - set(neg_syms))
+
+    print(f"\n=== Quality check summary ===")
+    print(f"Type A (nonpositive prices): {len(neg_syms)} symbols  {neg_syms if neg_syms else 'none'}")
+    print(f"Type B (insufficient rows) : {len(insuf_only)} symbols  {insuf_only if insuf_only else 'none'}")
+    print(f"Total excluded            : {len(blacklist)} symbols")
+    print()
+
+
+if __name__ == "__main__":
+    main()

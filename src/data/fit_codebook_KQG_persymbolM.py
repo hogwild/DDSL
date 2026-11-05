@@ -1,0 +1,477 @@
+"""
+02_fit_codebook_KQG_persymbolM.py
+==================================
+Fit codebook for K/Q/G (globally across all stocks) and M (per-symbol) tokens.
+
+Usage
+-----
+# Primary: drive everything via a YAML config
+    python scripts/01_data_processing/02_fit_codebook_KQG_persymbolM.py \\
+        --config configs/labeling/fit_codebook_SSE50.yaml
+
+# Optional CLI overrides (take precedence over YAML values):
+    python ... --config configs/labeling/fit_codebook_SSE50.yaml \\
+               --out_dir artifacts/tokenizer/debug \\
+               --end_date 2016-12-31 \\
+               --max_files 10
+
+Config schema (YAML)
+--------------------
+data:
+  raw_dir:          data/raw/SSE50
+  symbol_txt_path:  null              # path to a .txt file with one ticker per line
+  adjust:           hfq               # hfq | qfq | raw
+
+fit:
+  start_date:  null                   # YYYY-MM-DD or null
+  end_date:    "2018-12-31"
+
+output:
+  out_dir: artifacts/tokenizer/k16q8g8m4/SSE50-2018-12-31
+
+tokens:
+  K:
+    k_geom: 16                        # KMeans clusters for geometry token K
+  Q:
+    bins: 8
+    mode: dc                          # dc=log(Ct/Ct-1)  |  volnorm=dc/sigma_{t-1}
+    vol_window:   60                  # rolling window for sigma (volnorm only)
+    min_periods:  30                  # min rolling periods (volnorm only)
+  G:
+    bins: 8
+  M:
+    bins: 4
+    col:  turnover                    # DataFrame column used for M
+
+debug:
+  max_files: 0                        # 0 = no limit; >0 truncates file list (for testing)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Set
+
+import numpy as np
+import pandas as pd
+import yaml
+from joblib import dump
+from sklearn.cluster import KMeans
+from .check_price_quality import load_blacklist
+
+# =============================================================================
+# Feature functions
+# =============================================================================
+
+def compute_geometry(df: pd.DataFrame, eps: float = 1e-12) -> pd.DataFrame:
+    """
+    Candlestick geometry features (all in [0, 1] range):
+      b   = (close - open)  / R
+      clv = (close - low)   / R
+      uw  = (high  - max(open, close)) / R
+      lw  = (min(open, close) - low)   / R
+    where R = high - low.
+    """
+    o = pd.to_numeric(df["open"],  errors="coerce").astype(float).to_numpy()
+    h = pd.to_numeric(df["high"],  errors="coerce").astype(float).to_numpy()
+    l = pd.to_numeric(df["low"],   errors="coerce").astype(float).to_numpy()
+    c = pd.to_numeric(df["close"], errors="coerce").astype(float).to_numpy()
+
+    R   = (h - l) + eps
+    b   = (c - o) / R
+    clv = (c - l) / R
+    uw  = (h - np.maximum(o, c)) / R
+    lw  = (np.minimum(o, c) - l) / R
+    return pd.DataFrame({"b": b, "clv": clv, "uw": uw, "lw": lw})
+
+
+def compute_displacement(
+    df: pd.DataFrame,
+    eps: float = 1e-12,
+    long_h: int = 5,
+) -> pd.DataFrame:
+    """
+    Log-return features:
+      dC   = log(close_t / close_{t-1})
+      gap  = log(open_t  / close_{t-1})
+      dC{long_h} = log(close_t / close_{t-long_h})
+    Grouping by 'symbol' so the first row of each symbol is NaN, not polluted
+    by the last row of the previous symbol.
+    """
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["symbol", "date"]).reset_index(drop=True)
+
+    c = pd.to_numeric(df["close"], errors="coerce").astype(float)
+    o = pd.to_numeric(df["open"],  errors="coerce").astype(float)
+
+    g       = df["symbol"]
+    c_prev  = c.groupby(g).shift(1)
+    c_prev_h = c.groupby(g).shift(long_h)
+
+    dC1 = np.log((c + eps) / (c_prev   + eps))
+    gap = np.log((o + eps) / (c_prev   + eps))
+    dCh = np.log((c + eps) / (c_prev_h + eps))
+
+    return pd.DataFrame({"dC": dC1, "gap": gap, f"dC{long_h}": dCh})
+
+
+def compute_volnorm_dc(
+    df: pd.DataFrame,
+    vol_window: int,
+    min_periods: int,
+    eps: float = 1e-12,
+) -> pd.Series:
+    """z_t = dC_t / sigma_{t-1}, where sigma is a past-only rolling std."""
+    d     = compute_displacement(df, eps=eps)["dC"]
+    sigma = d.rolling(vol_window, min_periods=min_periods).std().shift(1)
+    return d / (sigma + eps)
+
+
+# =============================================================================
+# I/O helpers
+# =============================================================================
+
+def load_symbols_from_txt(txt_path: Path) -> Set[str]:
+    with txt_path.open("r", encoding="utf-8") as f:
+        return {line.strip() for line in f if line.strip()}
+
+
+def list_csv_files(
+    raw_dir: Path,
+    adjust: str,
+    symbols: Optional[Iterable[str]] = None,
+) -> List[Path]:
+    """Glob files matching *_{adjust}.csv, optionally filtered by symbol list."""
+    pat   = f"*_{adjust}.csv"
+    files = sorted(raw_dir.glob(pat))
+    if symbols is None:
+        return files
+    symbol_set = {str(s) for s in symbols}
+    return [f for f in files if f.stem.split("_")[0] in symbol_set]
+
+
+def load_one_csv(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path, dtype={"symbol": str})
+    
+    if "date" not in df.columns:
+        raise KeyError(f"{path} missing 'date'")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+    return df
+
+
+def filter_by_date(
+    df: pd.DataFrame,
+    start_ts: Optional[pd.Timestamp],
+    end_ts: Optional[pd.Timestamp],
+) -> pd.DataFrame:
+    if start_ts is None and end_ts is None:
+        return df
+    d = pd.to_datetime(df["date"], errors="coerce")
+    m = d.notna()
+    if start_ts is not None:
+        m &= d >= start_ts
+    if end_ts is not None:
+        m &= d <= end_ts
+    return df.loc[m].copy()
+
+
+def quantile_edges(x: np.ndarray, bins: int) -> np.ndarray:
+    x  = np.asarray(x, dtype=float)
+    x  = x[np.isfinite(x)]
+    if x.size == 0:
+        return np.full(bins - 1, np.nan, dtype=float)
+    qs = np.linspace(1 / bins, (bins - 1) / bins, bins - 1)
+    return np.quantile(x, qs)
+
+
+# =============================================================================
+# Config loading
+# =============================================================================
+
+def load_yaml_config(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def apply_cli_overrides(cfg: dict, args: argparse.Namespace) -> dict:
+    """Patch cfg in-place with any non-None CLI override values."""
+    if args.out_dir is not None:
+        cfg["output"]["out_dir"] = args.out_dir
+    if args.start_date is not None:
+        cfg["fit"]["start_date"] = args.start_date
+    if args.end_date is not None:
+        cfg["fit"]["end_date"] = args.end_date
+    if args.max_files is not None:
+        cfg["debug"]["max_files"] = args.max_files
+    return cfg
+
+
+def resolve_config(cfg: dict) -> dict:
+    """
+    Fill in missing optional keys with safe defaults so downstream code
+    never has to call .get() with a default.
+    """
+    cfg.setdefault("debug", {})
+    cfg["debug"].setdefault("max_files", 0)
+
+    cfg["data"].setdefault("symbol_txt_path", None)
+    cfg["data"].setdefault("blacklist_path", None)   # Added
+
+    cfg["fit"].setdefault("start_date", None)
+    cfg["fit"].setdefault("end_date",   None)
+    cfg["fit"].setdefault("min_rows",   60)   # Must be >= training.seq_len.
+
+    q = cfg["tokens"]["Q"]
+    q.setdefault("mode",        "dc")
+    q.setdefault("vol_window",  60)
+    q.setdefault("min_periods", 30)
+
+    cfg["tokens"]["M"].setdefault("col", "turnover")
+
+    return cfg
+
+
+def save_resolved_config(cfg: dict, out_dir: Path) -> None:
+    path = out_dir / "fit_config.json"
+    # make a JSON-serialisable copy (numpy arrays are excluded — they go in joblib)
+    def _clean(obj):
+        if isinstance(obj, dict):
+            return {k: _clean(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_clean(v) for v in obj]
+        if isinstance(obj, np.ndarray):
+            return "<ndarray>"
+        return obj
+    path.write_text(
+        json.dumps(_clean(cfg), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"[OK] resolved config -> {path}")
+
+
+# =============================================================================
+# CLI
+# =============================================================================
+
+def parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser(
+        description="Fit K/Q/G/M codebook from YAML config.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    ap.add_argument(
+        "--config", type=str, required=True,
+        help="Path to YAML config file (e.g. configs/labeling/fit_codebook_SSE50.yaml).",
+    )
+    # --- optional CLI overrides ---
+    ap.add_argument("--out_dir",    type=str,  default=None, help="Override output.out_dir.")
+    ap.add_argument("--start_date", type=str,  default=None, help="Override fit.start_date (YYYY-MM-DD).")
+    ap.add_argument("--end_date",   type=str,  default=None, help="Override fit.end_date (YYYY-MM-DD).")
+    ap.add_argument("--max_files",  type=int,  default=None, help="Override debug.max_files (0=no limit).")
+    return ap.parse_args()
+
+
+# =============================================================================
+# fit codebook
+# =============================================================================
+
+def fit_codebook_from_config(cfg: dict) -> None:
+    cfg = resolve_config(cfg)
+
+    # --- Unpack config sections ---
+    data_cfg   = cfg["data"]
+    fit_cfg    = cfg["fit"]
+    output_cfg = cfg["output"]
+    tok_cfg    = cfg["tokens"]
+    debug_cfg  = cfg["debug"]
+
+    raw_dir = Path(data_cfg["raw_dir"])
+    adjust  = data_cfg["adjust"]
+    out_dir = Path(output_cfg["out_dir"])
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Symbol filter
+    symbols: Optional[Set[str]] = None
+    if data_cfg["symbol_txt_path"]:
+        symbols = load_symbols_from_txt(Path(data_cfg["symbol_txt_path"]))
+        print(f"[INFO] Symbol filter loaded: {len(symbols)} symbols from {data_cfg['symbol_txt_path']}")
+
+    # Read the blacklist and exclude matching files.
+    
+    blacklist_path = Path(data_cfg.get("blacklist_path", ""))
+    blacklist: set[str] = set()
+    if blacklist_path.exists():
+        blacklist = load_blacklist(blacklist_path)
+        print(f"[INFO] Blacklist loaded: {len(blacklist)} symbols from {blacklist_path}")
+
+    # Date range
+    start_ts = pd.to_datetime(fit_cfg["start_date"]) if fit_cfg["start_date"] else None
+    end_ts   = pd.to_datetime(fit_cfg["end_date"])   if fit_cfg["end_date"]   else None
+    min_rows = int(fit_cfg["min_rows"])
+
+    # Token parameters
+    k_geom      = int(tok_cfg["K"]["k_geom"])
+    bins_q      = int(tok_cfg["Q"]["bins"])
+    q_mode      = tok_cfg["Q"]["mode"]
+    vol_window  = int(tok_cfg["Q"]["vol_window"])
+    q_min_periods = int(tok_cfg["Q"]["min_periods"])
+    bins_g      = int(tok_cfg["G"]["bins"])
+    bins_m      = int(tok_cfg["M"]["bins"])
+    m_col       = tok_cfg["M"]["col"]
+
+    if q_mode not in ("dc", "volnorm"):
+        raise ValueError(f"tokens.Q.mode must be 'dc' or 'volnorm', got '{q_mode}'")
+
+    print(f"[INFO] raw_dir  = {raw_dir}")
+    print(f"[INFO] adjust   = {adjust}")
+    print(f"[INFO] fit range: {fit_cfg['start_date']} → {fit_cfg['end_date']}")
+    print(f"[INFO] min_rows = {min_rows}")
+    print(f"[INFO] K={k_geom}  Q={bins_q}({q_mode})  G={bins_g}  M={bins_m}({m_col})")
+    print(f"[INFO] out_dir  = {out_dir}")
+
+    # --- Discover files ---
+    files = list_csv_files(raw_dir, adjust, symbols=symbols)
+    files = [f for f in files if f.name.split("_", 1)[0] not in blacklist]  # Added
+    
+    max_files = int(debug_cfg["max_files"])
+    if max_files > 0:
+        files = files[:max_files]
+        print(f"[DEBUG] Limiting to {max_files} files.")
+    if not files:
+        raise FileNotFoundError(
+            f"No CSV files found in {raw_dir} matching '*_{adjust}.csv'."
+        )
+    print(f"[INFO] {len(files)} files to process.")
+
+    # --- First pass: collect samples for global fitting ---
+    geom_rows:    List[np.ndarray] = []
+    q_values_all: List[np.ndarray] = []
+    g_values_all: List[np.ndarray] = []
+    edges_m_by_symbol: Dict[str, np.ndarray] = {}
+    symbols_with_codebook: list[str] = []
+    symbols_without_codebook: list[str] = []
+
+    for i, fpath in enumerate(files, 1):
+        sym = fpath.name.split("_", 1)[0]
+        df_all = load_one_csv(fpath)
+        df_fit = filter_by_date(df_all, start_ts, end_ts)
+
+        if len(df_fit) < min_rows:
+            print(f"  [{i}/{len(files)}] SKIP {sym}: only {len(df_fit)} rows in fit range")
+            symbols_without_codebook.append(sym)
+            continue
+
+        symbols_with_codebook.append(sym)
+
+        # K: geometry features
+        Xg = compute_geometry(df_fit)[["b", "clv", "uw", "lw"]].to_numpy(dtype=float)
+        ok = np.isfinite(Xg).all(axis=1)
+        if ok.sum() >= 50:
+            geom_rows.append(Xg[ok])
+
+        # Q / G: log-return features
+        if q_mode == "dc":
+            dc_gap  = compute_displacement(df_fit)
+            q_cont  = dc_gap["dC"].to_numpy(dtype=float)
+            g_cont  = dc_gap["gap"].to_numpy(dtype=float)
+        else:  # volnorm
+            q_cont  = compute_volnorm_dc(
+                df_fit, vol_window=vol_window, min_periods=q_min_periods
+            ).to_numpy(dtype=float)
+            g_cont  = compute_displacement(df_fit)["gap"].to_numpy(dtype=float)
+
+        q_values_all.append(q_cont)
+        g_values_all.append(g_cont)
+
+        # M: per-symbol turnover edges
+        if m_col not in df_fit.columns:
+            raise KeyError(
+                f"{fpath.name}: missing required column '{m_col}' for M token."
+            )
+        m_cont = pd.to_numeric(df_fit[m_col], errors="coerce").astype(float).to_numpy()
+        edges_m_by_symbol[sym] = quantile_edges(m_cont, bins_m)
+
+        if i % 50 == 0:
+            print(f"  [{i}/{len(files)}] scanned")
+
+    if not geom_rows:
+        raise RuntimeError(
+            "No geometry samples collected. Check --raw_dir, date range, and data quality."
+        )
+
+    # --- Fit K: KMeans on geometry (global) ---
+    X_geom = np.vstack(geom_rows)
+    print(f"\n[INFO] Geometry samples collected: {X_geom.shape}")
+    print(f"[INFO] Fitting KMeans (K={k_geom}) ...")
+    km = KMeans(n_clusters=k_geom, random_state=42, n_init="auto")
+    km.fit(X_geom)
+    dump(km, out_dir / "geom_kmeans.joblib")
+    print(f"[OK]  geom_kmeans.joblib  saved.")
+
+    # --- Fit Q / G edges (global) ---
+    q_all   = np.concatenate(q_values_all)
+    g_all   = np.concatenate(g_values_all)
+    edges_q = quantile_edges(q_all, bins_q)
+    edges_g = quantile_edges(g_all, bins_g)
+
+    # --- Save bins artifact ---
+    bins_artifact = {
+        # metadata
+        "fit_start_date": fit_cfg["start_date"],
+        "fit_end_date":   fit_cfg["end_date"],
+        "min_rows":       min_rows,
+        # Q
+        "q_mode":      q_mode,
+        "bins_q":      bins_q,
+        "vol_window":  vol_window,
+        "q_min_periods": q_min_periods,
+        "edges_q":     edges_q,
+        # G
+        "bins_g":      bins_g,
+        "edges_g":     edges_g,
+        # M
+        "m_col":       m_col,
+        "bins_m":      bins_m,
+        "edges_m_by_symbol": edges_m_by_symbol,
+    }
+    dump(bins_artifact, out_dir / "bins.joblib")
+    print(f"[OK]  bins.joblib          saved.")
+
+    # --- Persist resolved config for reproducibility ---
+    save_resolved_config(cfg, out_dir)
+    
+    # Run after save_resolved_config(cfg, out_dir).
+    symbol_codebook_info = {
+        "symbols_with_codebook": sorted(symbols_with_codebook),
+        "symbols_without_codebook": sorted(symbols_without_codebook),
+    }
+
+    info_path = out_dir / "symbol_codebook_info.json"
+    with open(info_path, "w", encoding="utf-8") as f:
+        json.dump(symbol_codebook_info, f, indent=2, ensure_ascii=False)
+    print(f"[OK] symbol_codebook_info.json saved -> {info_path}")
+    print(f"     symbols_with_codebook   : {len(symbols_with_codebook)}")
+    print(f"     symbols_without_codebook: {len(symbols_without_codebook)}")
+
+    print(f"\nDone. Artifacts written to: {out_dir}")
+
+
+# =============================================================================
+# Main
+# =============================================================================
+def main() -> None:
+    args = parse_args()
+
+    cfg = load_yaml_config(args.config)
+    cfg = apply_cli_overrides(cfg, args)
+    fit_codebook_from_config(cfg)
+
+
+    
+
+
+if __name__ == "__main__":
+    main()

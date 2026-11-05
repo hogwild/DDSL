@@ -1,0 +1,28 @@
+# 自动生成：请勿手动修改。重新运行 run_check_price_quality.py 以更新。
+# fit_end_date = 2018-12-31   min_rows = 60
+#
+# ── 类型 A：后复权价格存在非正值，log 收益率计算失效 ──────────────────
+#   （无）
+#
+# ── 类型 B：fit 窗口内行数不足，无法进入 codebook ───────────────────
+#   ABNB  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   APP  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   ARM  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   CEG  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   CRWD  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   DASH  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   DDOG  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   FER  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   GEHC  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   PLTR  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#
+ABNB
+APP
+ARM
+CEG
+CRWD
+DASH
+DDOG
+FER
+GEHC
+PLTR

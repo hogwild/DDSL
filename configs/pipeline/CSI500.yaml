@@ -1,0 +1,140 @@
+# CSI500/hfq snapshot of the four standalone configs for Transformer beta ablation.
+# Preserves batch_size=2048 and the submitter's n_workers=4.
+# Batches override output_root, seed, labeler and beta; blacklist is generated once per batch.
+schema_version: 1
+dataset:
+  name: CSI500
+  market: cn
+  adjust: hfq
+data:
+  raw_dir: data/raw_icaif2026_paper/CSI500
+  blacklist_path: configs/symbols/CSI500_blacklist.txt
+pipeline:
+  output_root: outputs/pipeline_runs/CSI500_beta03_seed42
+  start_iter: 0
+  end_iter: 5
+  seed: 42
+  n_workers: 4
+  labeler: auto
+  skip_test: false
+  skip_export_logits: false
+  force_fit_codebook: true
+  force_rebuild_shared_logits_dataset: true
+  force_regenerate_blacklist: true
+splits:
+  train:
+    start_date: null
+    end_date: '2018-12-31'
+  val:
+    start_date: '2019-01-01'
+    end_date: '2022-12-31'
+  test:
+    start_date: '2023-01-01'
+    end_date: '2025-12-31'
+codebook:
+  symbol_txt_path: null
+  fit:
+    start_date: null
+    end_date: '2018-12-31'
+    min_rows: 60
+  tokens:
+    K:
+      k_geom: 16
+    Q:
+      bins: 8
+      mode: dc
+      vol_window: 60
+      min_periods: 30
+    G:
+      bins: 8
+    M:
+      bins: 4
+      col: turnover
+  debug:
+    max_files: 0
+labeling:
+  history_start_date: null
+  columns:
+    date_col: date
+    price_col: close
+  smoothing:
+    smooth_span: 10
+  windows:
+    current_left: 10
+    current_right: 10
+    future: 20
+  scoring:
+    tau: 0.0005
+    lambda_current: 1.0
+    lambda_future: 1.2
+    w_slope: 1.0
+    w_flip: 0.8
+    w_pos: 0.6
+    w_flip_neutral: 0.4
+    w_pos_neutral: 0.6
+  transition:
+    lambda_neutral_switch: 0.25
+    lambda_opposite_switch: 1.0
+    mu_neutral_switch: 0.05
+    mu_opposite_switch: 0.1
+  ddsl:
+    beta_model: 0.3
+    model_score_kind: logit
+    model_temperature: 1.0
+    require_model_scores: false
+build_dataset:
+  options:
+    trim_tail_days: 0
+    combine: true
+    max_files: 0
+    require_state: true
+train:
+  model:
+    num_K: 16
+    num_Q: 8
+    num_G: 8
+    num_M: 4
+    d_model: 64
+    nhead: 4
+    num_layers: 6
+    dim_feedforward: 128
+    dropout: 0.3
+    max_seq_len: 60
+    pooling: last
+  training:
+    precision: fp32
+    seq_len: 60
+    batch_size: 2048
+    num_workers: 4
+    epochs: 60
+    lr: 0.0003
+    weight_decay: 0.0001
+    grad_clip: 1.0
+    scheduler: ReduceLROnPlateau
+    loss_type: focal
+    use_class_weights: true
+  loss:
+    focal_gamma: 2.0
+
+# GRU learnability probe: consumes existing DDSL datasets; never exports logits.
+gru:
+  model:
+    d_model: 64
+    hidden_size: 64
+    num_layers: 2
+    dropout: 0.3
+    bidirectional: false
+    pooling: last
+  training:
+    seq_len: 60
+    batch_size: 2048
+    num_workers: 4
+    epochs: 60
+    lr: 0.0003
+    weight_decay: 0.0001
+    grad_clip: 1.0
+    scheduler: ReduceLROnPlateau
+    loss_type: focal
+    use_class_weights: true
+  loss:
+    focal_gamma: 2.0

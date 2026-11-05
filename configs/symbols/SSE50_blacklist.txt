@@ -1,0 +1,28 @@
+# Auto-generated: do not edit manually. Rerun run_check_price_quality.py to update.
+# fit_end_date = 2018-12-31   min_rows = 60
+#
+# ── Type A: nonpositive adjusted prices invalidate log returns ──────────────────
+#   (none)
+#
+# ── Type B: too few rows in the fit window for codebook fitting ───────────────────
+#   600930  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601658  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601728  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601816  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688008  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688012  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688041  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688111  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688256  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688981  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#
+600930
+601658
+601728
+601816
+688008
+688012
+688041
+688111
+688256
+688981

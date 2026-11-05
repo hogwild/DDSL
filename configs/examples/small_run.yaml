@@ -1,0 +1,131 @@
+# Small example, not a paper experiment: three synthetic stocks, iteration 0, one epoch.
+# See README.md#small-training-example. Model, token, labeling and splits follow SSE50.
+# Use a dedicated input folder and a new output directory for each run.
+schema_version: 1
+dataset:
+  name: SSE50
+  market: cn
+  adjust: hfq
+data:
+  raw_dir: data/example/SSE50
+  blacklist_path: outputs/examples/small_run_blacklist.txt
+pipeline:
+  output_root: outputs/examples/transformer_001
+  start_iter: 0
+  end_iter: 0
+  seed: 42
+  n_workers: 1
+  labeler: auto
+  skip_test: false
+  skip_export_logits: false
+  force_fit_codebook: true
+  force_rebuild_shared_logits_dataset: true
+  force_regenerate_blacklist: false
+splits:
+  train:
+    start_date: null
+    end_date: '2018-12-31'
+  val:
+    start_date: '2019-01-01'
+    end_date: '2022-12-31'
+  test:
+    start_date: '2023-01-01'
+    end_date: '2025-12-31'
+codebook:
+  symbol_txt_path: null
+  fit:
+    min_rows: 60
+  tokens:
+    K:
+      k_geom: 16
+    Q:
+      bins: 8
+      mode: dc
+      vol_window: 60
+      min_periods: 30
+    G:
+      bins: 8
+    M:
+      bins: 4
+      col: turnover
+  debug:
+    max_files: 0
+labeling:
+  history_start_date: null
+  columns:
+    date_col: date
+    price_col: close
+  smoothing:
+    smooth_span: 10
+  windows:
+    current_left: 10
+    current_right: 10
+    future: 20
+  scoring:
+    tau: 0.0005
+    lambda_current: 1.0
+    lambda_future: 1.2
+    w_slope: 1.0
+    w_flip: 0.8
+    w_pos: 0.6
+    w_flip_neutral: 0.4
+    w_pos_neutral: 0.6
+  transition:
+    lambda_neutral_switch: 0.25
+    lambda_opposite_switch: 1.0
+    mu_neutral_switch: 0.05
+    mu_opposite_switch: 0.1
+  ddsl:
+    beta_model: 0.3
+    model_score_kind: logit
+    model_temperature: 1.0
+    require_model_scores: false
+build_dataset:
+  options:
+    trim_tail_days: 0
+    combine: true
+    max_files: 0
+    require_state: true
+train:
+  model:
+    d_model: 64
+    nhead: 4
+    num_layers: 6
+    dim_feedforward: 128
+    dropout: 0.3
+    pooling: last
+  training:
+    precision: fp32
+    seq_len: 60
+    batch_size: 64
+    num_workers: 0
+    epochs: 1
+    lr: 0.0003
+    weight_decay: 0.0001
+    grad_clip: 1.0
+    scheduler: ReduceLROnPlateau
+    loss_type: focal
+    use_class_weights: true
+  loss:
+    focal_gamma: 2.0
+gru:
+  model:
+    d_model: 64
+    hidden_size: 64
+    num_layers: 2
+    dropout: 0.3
+    bidirectional: false
+    pooling: last
+  training:
+    seq_len: 60
+    batch_size: 64
+    num_workers: 0
+    epochs: 1
+    lr: 0.0003
+    weight_decay: 0.0001
+    grad_clip: 1.0
+    scheduler: ReduceLROnPlateau
+    loss_type: focal
+    use_class_weights: true
+  loss:
+    focal_gamma: 2.0

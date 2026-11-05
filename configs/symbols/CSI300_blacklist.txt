@@ -1,0 +1,122 @@
+# 自动生成：请勿手动修改。重新运行 run_check_price_quality.py 以更新。
+# fit_end_date = 2018-12-31   min_rows = 60
+#
+# ── 类型 A：后复权价格存在非正值，log 收益率计算失效 ──────────────────
+#   （无）
+#
+# ── 类型 B：fit 窗口内行数不足，无法进入 codebook ───────────────────
+#   001280  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   001391  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   003816  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   300760  only 54 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   300803  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   300832  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   300866  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   300896  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   300999  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   301165  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   301236  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   301269  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   301308  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   600905  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   600918  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   600930  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   600938  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   600941  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   600989  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601059  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601077  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601136  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601319  only 31 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601456  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601658  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601698  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601728  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601816  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601825  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601868  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601916  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   601995  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   603296  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   603392  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   603893  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   605117  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   605499  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688008  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688009  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688012  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688036  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688041  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688047  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688072  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688082  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688111  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688126  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688183  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688223  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688256  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688271  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688303  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688396  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688472  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688506  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688521  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#   688981  only 0 rows before fit_end_date 2018-12-31 (min_rows=60)
+#
+001280
+001391
+003816
+300760
+300803
+300832
+300866
+300896
+300999
+301165
+301236
+301269
+301308
+600905
+600918
+600930
+600938
+600941
+600989
+601059
+601077
+601136
+601319
+601456
+601658
+601698
+601728
+601816
+601825
+601868
+601916
+601995
+603296
+603392
+603893
+605117
+605499
+688008
+688009
+688012
+688036
+688041
+688047
+688072
+688082
+688111
+688126
+688183
+688223
+688256
+688271
+688303
+688396
+688472
+688506
+688521
+688981

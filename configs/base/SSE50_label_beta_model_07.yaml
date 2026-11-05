@@ -1,0 +1,94 @@
+# configs/base/sse50_ddsl.yaml
+#
+# Base config for DDSL iterative labeling.
+#
+# This file stores stable experiment settings:
+#   - dataset name
+#   - input data paths
+#   - label construction parameters
+#   - DDSL energy parameters
+#   - train / val / test split date ranges
+#
+# Iteration-dependent paths such as:
+#   outputs/SSE50/iter_0/labels
+#   outputs/SSE50/iter_0/logits
+#   outputs/SSE50/iter_1/labels
+# are injected by src/pipeline/run_labeling.py.
+
+# dataset: SSE50
+dataset:
+  name: SSE50
+  market: cn
+  adjust: hfq
+
+data:
+  blacklist_path:  configs/symbols/SSE50_blacklist.txt  
+  
+labeler:
+  # Default value. The pipeline will override this:
+  #   iter_0  -> dp
+  #   iter_1+ -> ddsl
+  type: auto
+
+columns:
+  date_col: date
+  price_col: close
+
+smoothing:
+  smooth_span: 10
+
+windows:
+  current_left: 10
+  current_right: 10
+  future: 20
+
+scoring:
+  tau: 0.0005
+  lambda_current: 1.0
+  lambda_future: 1.2
+  w_slope: 1.0
+  w_flip: 0.8
+  w_pos: 0.6
+  w_flip_neutral: 0.4
+  w_pos_neutral: 0.6
+
+transition:
+  lambda_neutral_switch: 0.25
+  lambda_opposite_switch: 1.00
+
+  # E_grammar: future_{t-1} -> current_t consistency.
+  # This can remain active for both DP and DDSL labeling.
+  mu_neutral_switch: 0.05
+  mu_opposite_switch: 0.1
+
+ddsl:
+  # This is only an energy weight for DDSLLabeler.
+  # It no longer decides whether to use DPLabeler or DDSLLabeler.
+  beta_model: 0.7
+
+  # auto | prob | logprob | logit
+  model_score_kind: logit
+
+  # Used when model_score_kind is logit or auto-detected as logit.
+  model_temperature: 1.0
+
+  # For iter_1+, DDSL should require logits from the previous iteration.
+  require_model_scores: false
+
+io:
+  in_dir: data/raw/SSE50
+  pattern: "*.csv"
+  print_stats: true
+
+splits:
+  train:
+    start_date: null
+    end_date: "2018-12-31"
+
+  val:
+    start_date: null
+    end_date: "2022-12-31"
+
+  test:
+    start_date: null
+    end_date: "2025-12-31"

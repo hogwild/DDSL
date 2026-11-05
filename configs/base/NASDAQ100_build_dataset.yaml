@@ -1,0 +1,31 @@
+dataset:
+  name: NASDAQ100
+  market: us
+  adjust: hfq
+
+data:
+  blacklist_path:  configs/symbols/NASDAQ100_blacklist.txt  
+
+tokenizer:
+  # dir is automatically overridden with
+  # {output_root}/{dataset}/codebook
+  dir: outputs/NASDAQ100/codebook
+
+options:
+  trim_tail_days: 0
+  combine: true
+  max_files: 0
+  require_state: true
+
+splits:
+  train:
+    start_date: null
+    end_date: "2018-12-31"
+
+  val:
+    start_date: "2019-01-01"
+    end_date: "2022-12-31"
+
+  test:
+    start_date: "2023-01-01"
+    end_date: "2025-12-31"

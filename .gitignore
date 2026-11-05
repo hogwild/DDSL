@@ -1,0 +1,36 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints
+*.pyc
+.DS_Store
+.vscode/
+
+# Publish only the bundled example data; all other data and local links stay private.
+/data/*
+!/data/example/
+
+# Local maintenance files; not part of the public project.
+/tests/
+/provenance/
+/scripts/validate_release.py
+/AGENTS.md
+/docs/
+
+deprecated/
+experiments/
+outputs*/
+logs/
+archive/
+scratch/
+paper_release/
+paper_latex/
+
+*.pt
+*.pth
+*.log
+*.csv
+*.err
+*.out
+
+# Explicit exceptions to the general CSV exclusion above.
+!/data/example/SSE50/*.csv

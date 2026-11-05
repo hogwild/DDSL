@@ -1,0 +1,12 @@
+# TEMPLATE ONLY. Fill in author-approved metadata before renaming CITATION.cff.
+# No repository URL, manuscript title or author identity is inferred.
+cff-version: 1.2.0
+message: "Replace this template with the approved software and paper citation before publishing."
+type: software
+license: MIT
+title: "DDSL — EDIT_APPROVED_SOFTWARE_TITLE"
+authors:
+  - family-names: "EDIT_FAMILY_NAME"
+    given-names: "EDIT_GIVEN_NAMES"
+# Add the confirmed repository URL, release version, release date and DOI.
+# Add preferred-citation only when the final paper metadata is available.
