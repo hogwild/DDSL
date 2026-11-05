@@ -29,9 +29,23 @@ data or quality-check settings.
 
 Default splits train through 2018-12-31, validate in 2019-2022 and test in
 2023-2025. The sequence length is 60, labeling windows are 10/10/20 and token
-sizes are K=16, Q=8, G=8, M=4. The unified YAML controls the full pipeline;
-`configs/base/` contains separate configurations for individual stages and does
-not automatically follow edits to a unified YAML.
+sizes are K=16, Q=8, G=8, M=4. The unified YAML controls the full pipeline and
+contains both Transformer and GRU settings. The public project includes six
+YAMLs: four dataset pipelines, the small example and the report template.
+
+Stage YAMLs are generated automatically inside each run: Transformer writes
+`<output_root>/<DATASET>/pipeline_config/{codebook,label,build,train}.yaml`;
+GRU writes `train_gru.yaml` under
+`<output_root>/<DATASET>/gru_pipeline_config/seed_<S>/iter_<start>_<end>/`.
+The old separate stage and beta-specific templates are no longer distributed.
+Beta sweeps select weights through `--betas` below.
+
+For advanced standalone stage commands, use an appropriate generated stage
+YAML or an explicitly supplied custom stage YAML, not the unified pipeline
+YAML. The Python Transformer runner still accepts all four explicit
+`--codebook_config`, `--label_config`, `--build_config` and `--train_config`
+paths together; the GRU runner accepts an explicit `--train_config`. Neither
+falls back to a bundled stage file. The public Bash launchers use `--config`.
 
 Prepare your inputs as described in [the data guide](data.md). Save the reviewed
 YAML as `configs/pipeline/experiment.yaml`; this filename is a user-created

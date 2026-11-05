@@ -26,25 +26,10 @@ Unified mode (the same YAML as Transformer, with a gru section):
 The input root holds the existing DDSL datasets; the output root holds only
 GRU artifacts. Omitting input_root retains the historical shared-tree layout.
 
-Legacy Python mode:
-python src/pipeline/run_gru_pipeline.py \\
-    --dataset SSE50 \\
-    --train_config configs/base/SSE50_train_gru.yaml \\
-    --output_root outputs \\
-    --start_iter 0 \\
-    --end_iter 5 \\
-    --seed 42 \\
-    --adjust hfq
-
-For multiple seeds, call this script once per seed (matches how the main
-DDSL pipeline is one job per seed, e.g. via separate Slurm submissions):
-
-    for seed in 41 42 43; do
-        python src/pipeline/run_gru_pipeline.py \\
-            --dataset SSE50 --train_config configs/base/SSE50_train_gru.yaml \\
-            --output_root outputs_seed${seed} --start_iter 0 --end_iter 5 \\
-            --seed ${seed} --adjust hfq
-    done
+Advanced Python mode accepts an explicitly supplied GRU stage YAML via
+--train_config instead of --config. Stage YAMLs are generated inside a run
+under gru_pipeline_config/seed_<S>/iter_<start>_<end>/train_gru.yaml;
+no standalone training templates are bundled. See docs/experiments.md.
 """
 
 from __future__ import annotations
@@ -137,8 +122,11 @@ def parse_args() -> GRUPipelineArgs:
         args.input_root = str(unified.input_root)
         args.train_config = str(unified.train_path)
     else:
-        # Retain direct Python legacy usage and the standalone training YAML.
-        defaults = {"dataset": "SSE50", "train_config": "configs/base/SSE50_train_gru.yaml",
+        # Custom stage configurations remain supported, but no stage files are bundled.
+        if not args.train_config:
+            p.error("Use --config configs/pipeline/<DATASET>.yaml, or explicitly supply "
+                    "--train_config with a GRU stage YAML.")
+        defaults = {"dataset": "SSE50",
                     "output_root": "outputs", "start_iter": 0, "end_iter": 5,
                     "seed": 42, "adjust": "hfq", "skip_test": False}
         for key, value in defaults.items():

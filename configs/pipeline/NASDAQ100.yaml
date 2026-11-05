@@ -1,4 +1,4 @@
-# Full DDSL pipeline only. Standalone stage YAMLs remain in configs/base.
+# Unified pipeline configuration; stage YAMLs are generated inside each run.
 # Snapshot of the current SSE50/qfq/beta=0.3 workstation settings.
 # See docs/experiments.md#configuration; run from the repository root.
 # Existing output directories are refused. Set a new --output_root for a new run.

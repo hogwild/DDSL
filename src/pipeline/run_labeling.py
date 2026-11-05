@@ -451,7 +451,7 @@ def main() -> None:
             f"--beta_model={args.beta_model} was given together with a "
             f"beta-specific config ({args.config}). That is two sources of "
             f"truth for the same parameter. Use the plain label config "
-            f"(configs/base/{{DATASET}}_label.yaml), or drop --beta_model."
+            f"(for example, a generated pipeline_config/label.yaml), or drop --beta_model."
         )
 
     y = apply_beta_model_override(y, args.beta_model)

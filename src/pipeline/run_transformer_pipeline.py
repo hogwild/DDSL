@@ -48,7 +48,7 @@ def parse_args() -> PipelineArgs:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    p.add_argument("--config", default=None, help="One full-pipeline YAML; independent stage YAMLs remain supported without this option.")
+    p.add_argument("--config", default=None, help="Unified pipeline YAML. Otherwise explicitly supply all four stage YAML paths.")
     p.add_argument("--dataset", default=None)
     p.add_argument("--label_config", default=None)
     p.add_argument("--build_config", default=None)
@@ -164,13 +164,14 @@ def parse_args() -> PipelineArgs:
         a.beta_model = None
         a.train_precision = None
     else:
-        # Preserve all legacy defaults, including historical path spelling.
+        # Custom stage configurations remain supported, but no stage files are bundled.
+        stage_options = ("codebook_config", "label_config", "build_config", "train_config")
+        missing = [name for name in stage_options if not getattr(a, name)]
+        if missing:
+            p.error("Use --config configs/pipeline/<DATASET>.yaml, or explicitly supply all four "
+                    "stage YAMLs. Missing: " + ", ".join(f"--{name}" for name in missing))
         defaults = {
             "dataset": "SSE50", "adjust": "hfq", "output_root": "outputs",
-            "label_config": "configs/base/sse50_label.yaml",
-            "build_config": "configs/base/sse50_build_dataset.yaml",
-            "train_config": "configs/base/sse50_train.yaml",
-            "codebook_config": "configs/base/sse50_fit_codebook.yaml",
             "start_iter": 0, "end_iter": 3, "seed": 42, "n_workers": 8,
             "labeler": "auto", "skip_test": False, "skip_export_logits": False,
             "force_fit_codebook": False, "force_regenerate_blacklist": False,

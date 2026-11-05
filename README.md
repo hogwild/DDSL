@@ -95,7 +95,7 @@ for checkpoints, derived datasets and log locations.
 | `src/data/`, `src/states/`, `src/labeling/` | Tokenization, state definitions and labeling |
 | `src/models/`, `src/training/` | Transformer/GRU models, training and evaluation |
 | `src/pipeline/`, `src/analysis/` | Experiment orchestration and analyses |
-| `configs/` | Stage, pipeline, example and report configurations |
+| `configs/` | Four dataset pipelines, one small example and one report template |
 | `data/example/` | Three synthetic stock CSVs and their description |
 | `scripts/` | Public launchers, data preparation and report entry points |
 | `docs/` | Data, experiment and reporting guides |
