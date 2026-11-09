@@ -33,6 +33,18 @@ include `tables/`, `figures/`, `main/`, `ablation/`, `events/`, `event_summary/`
 `logs/` and `run.json`; `COMPLETE` is written only after the full workflow succeeds.
 A subset covers only the selected scope. Figure 3 requires SSE50 ablation data.
 
+The figure stage exports Figure 2 in both combined and separate forms, each as
+PDF and PNG:
+
+- `figure2_cross_market`: the original two-panel figure.
+- `figure2a_learnability`: Transformer macro F1 across iterations.
+- `figure2b_price_separation`: segment-level Fisher Ratio across iterations.
+
+The standalone panels use 4 × 3 inch canvases before the export crop and share
+the combined figure's dataset colors, iteration coordinates, means and ±1 SD
+bands. They are generated automatically from the same `main_mean_std.csv`;
+no extra command-line option or example seed is required.
+
 ## Figure 1 and event reuse
 
 Figure 1 requires an explicitly verified `--example-seed N` (and optionally
@@ -43,6 +55,28 @@ Use `--event-dir PATH` to reuse compatible completed event analysis.
 A dry run with new events checks inputs but cannot verify Table 5 before those
 events are generated. If a report fails, inspect its retained logs and retry in
 a new output directory.
+
+When `--example-seed` is supplied, the figure stage also exports
+`figure1_stock_example_poster.pdf` and `.png`, using the same verified source
+data as the paper version. This poster variant has no title, puts the nine-state
+legend below the four panels in three columns, and uses 18 pt labels and a fixed
+**38.9 × 19.9 cm** canvas including
+the legend and axes. Place the stock description in the poster caption. It is
+saved without a tight crop so that the intended dimensions are preserved.
+
+To generate figures from existing completed reports, use a new output directory:
+
+```bash
+python scripts/paper/plot_paper.py \
+  --config configs/reports/paper_results.yaml \
+  --main-dir outputs/paper_reports/review_001/main \
+  --ablation-dir outputs/paper_reports/review_001/ablation \
+  --output-dir outputs/paper_reports/figures_with_poster_001 \
+  --example-dataset SSE50 --example-seed VERIFIED_SEED
+```
+
+Replace `VERIFIED_SEED` with the confirmed source seed. The existing paper
+figures are exported alongside the new poster variant; no training is run.
 
 ## Statistical scope
 

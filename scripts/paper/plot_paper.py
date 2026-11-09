@@ -36,22 +36,40 @@ def read_stage(report, directory, command):
     return receipt, read
 
 
-def plot_trajectories(frame):
-    fig, axes = plt.subplots(1, 2, figsize=(8, 3), layout="constrained")
+def _plot_trajectory(ax, frame, metric, label):
+    """Draw one metric consistently in the combined and standalone figures."""
     for ds, rows in frame.groupby("dataset", sort=False):
         rows = rows.sort_values("iteration")
         if rows.iteration.tolist() != ITERATIONS:
             raise ValueError(f"Expected iterations 0..5 once per dataset: {ds}")
-        for ax, metric, label in zip(axes, ["transformer_f1", "segment_fisher"],
-                                     ["Transformer macro F1", "Segment Fisher ratio"]):
-            x, y, sd = (rows[column].to_numpy(dtype=float) for column in
-                        ["iteration", metric + "_mean", metric + "_std"])
-            if not np.isfinite([x, y, sd]).all() or (sd < 0).any():
-                raise ValueError(f"Invalid trajectory mean/SD: {ds}, {metric}")
-            line, = ax.plot(x, y, marker="o", markersize=3, label=ds)
-            ax.fill_between(x, y - sd, y + sd, color=line.get_color(), alpha=.15)
-            ax.set(xlabel="Iteration", ylabel=label, xticks=ITERATIONS)
-            ax.legend(fontsize=7)
+        x, y, sd = (rows[column].to_numpy(dtype=float) for column in
+                    ["iteration", metric + "_mean", metric + "_std"])
+        if not np.isfinite([x, y, sd]).all() or (sd < 0).any():
+            raise ValueError(f"Invalid trajectory mean/SD: {ds}, {metric}")
+        line, = ax.plot(x, y, marker="o", markersize=3, label=ds)
+        ax.fill_between(x, y - sd, y + sd, color=line.get_color(), alpha=.15)
+        ax.set(xlabel="Iteration", ylabel=label, xticks=ITERATIONS)
+        ax.legend(fontsize=7)
+
+
+def plot_trajectories(frame):
+    fig, axes = plt.subplots(1, 2, figsize=(8, 3), layout="constrained")
+    _plot_trajectory(axes[0], frame, "transformer_f1", "Transformer macro F1")
+    _plot_trajectory(axes[1], frame, "segment_fisher", "Segment Fisher ratio")
+    return fig
+
+
+def plot_figure2a(frame):
+    """Standalone Figure 2(a): Transformer macro F1, with mean +/- SD bands."""
+    fig, ax = plt.subplots(figsize=(4, 3), layout="constrained")
+    _plot_trajectory(ax, frame, "transformer_f1", "Transformer macro F1")
+    return fig
+
+
+def plot_figure2b(frame):
+    """Standalone Figure 2(b): segment Fisher ratio, with mean +/- SD bands."""
+    fig, ax = plt.subplots(figsize=(4, 3), layout="constrained")
+    _plot_trajectory(ax, frame, "segment_fisher", "Segment Fisher ratio")
     return fig
 
 
@@ -139,6 +157,32 @@ def plot_example(frame):
     return fig
 
 
+def plot_example_poster(frame):
+    """Figure 1 for the poster: 38.9 x 19.9 cm including the bottom legend.
+
+    Uses the same verified prices, states and segment boundaries as the paper
+    version. Save with bbox_inches=None to preserve the physical canvas size.
+    The stock identifier belongs in the poster caption, outside this figure.
+    """
+    fig = plot_example(frame)
+    fig.set_size_inches(38.9 / 2.54, 19.9 / 2.54)
+    for legend in list(fig.legends):
+        legend.remove()
+    for ax, iteration in zip(fig.axes, [0, 1, 3, 5]):
+        ax.set_ylabel("")
+        ax.text(.01, .94, "iter 0 (DP baseline)" if iteration == 0 else f"iter {iteration}",
+                transform=ax.transAxes, va="top", fontsize=18, fontweight="bold",
+                bbox={"facecolor": "white", "edgecolor": "none", "alpha": .8, "pad": 2})
+        ax.tick_params(axis="x", labelsize=18)
+        ax.spines[["top", "right", "left"]].set_visible(False)
+        ax.lines[0].set_linewidth(1.2)
+    fig.axes[-1].set_xlabel("Date", fontsize=18)
+    fig.legend(handles=[Patch(color=c, alpha=.65, label=s.replace("_TO_", " → "))
+                        for s, c in STATE_COLORS.items()],
+               loc="outside lower center", ncol=3, fontsize=18, frameon=False)
+    return fig
+
+
 def run(args):
     report = Report(args.config)
     for ds in report.cfg["datasets"]:
@@ -153,7 +197,10 @@ def run(args):
     figures = {}
     notes = []
     try:
-        figures["figure2_cross_market"] = plot_trajectories(main("main_mean_std.csv"))
+        trajectories = main("main_mean_std.csv")
+        figures["figure2_cross_market"] = plot_trajectories(trajectories)
+        figures["figure2a_learnability"] = plot_figure2a(trajectories)
+        figures["figure2b_price_separation"] = plot_figure2b(trajectories)
         sweeps = ablation("figure3_sweeps.csv")
         if "SSE50" in set(sweeps.dataset):
             figures["figure3_pareto_frontier"] = plot_frontier(sweeps)
@@ -164,6 +211,7 @@ def run(args):
             example = example_data(report, main("figure1_sources.csv"), main_receipt,
                                    args.example_dataset, args.example_seed)
             figures["figure1_stock_example"] = plot_example(example)
+            figures["figure1_stock_example_poster"] = plot_example_poster(example)
         else:
             notes.append("Figure 1 skipped: specify --example-seed after confirming its source run.")
         report.verify_inputs()
@@ -175,7 +223,12 @@ def run(args):
         output.mkdir(parents=True, exist_ok=False)
         for name, figure in figures.items():
             for extension in ["png", "pdf"]:
-                figure.savefig(output / f"{name}.{extension}", dpi=200, bbox_inches="tight")
+                if name == "figure1_stock_example_poster":
+                    # A tight crop would change the size measured for the poster.
+                    with plt.rc_context({"savefig.bbox": None}):
+                        figure.savefig(output / f"{name}.{extension}", dpi=200, bbox_inches=None)
+                else:
+                    figure.savefig(output / f"{name}.{extension}", dpi=200, bbox_inches="tight")
         if example is not None:
             example.to_csv(output / "figure1_source_data.csv", index=False)
         receipt = report.metadata("plot_paper")

@@ -29,6 +29,10 @@ archive/
 scratch/
 paper_release/
 paper_latex/
+poster_latex/
+paper_slides/
+
+icaif2026_logo/
 
 *.pt
 *.pth

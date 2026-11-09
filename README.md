@@ -10,6 +10,11 @@ CSVs for a local example. Real market data, trained models and experiment
 outputs are not bundled. Running the example demonstrates execution, not
 reproduction of the paper's numerical results.
 
+**Hardware and reproducibility:** The results reported in the paper's tables
+were obtained using an NVIDIA GeForce RTX 3080 Ti GPU on the NYU Shanghai HPC
+cluster. Results obtained with different GPUs may differ from those reported
+in the paper's tables.
+
 ## Installation
 
 Use Python 3.12. You can reuse a suitable environment or create one:
